@@ -41,17 +41,31 @@ module.exports = (obj, opts) => {
 		return opts.include ? opts.include.some(match) : !opts.exclude.some(match);
 	};
 
-	const ret = typeof obj === 'function' ? function () {
-		if (opts.excludeMain) {
-			return obj.apply(this, arguments);
+	const cache = new Map();
+	const main = Symbol('main');
+
+	return new Proxy(obj, {
+		apply: (target, thisArg, argumentsList) => {
+			let cached = cache.get(main);
+
+			if (!cached) {
+				cached = opts.excludeMain ? target : processFn(target, opts);
+				cache.set(main, cached);
+			}
+
+			return cached.apply(thisArg, argumentsList);
+		},
+		get: (target, key) => {
+			let cached = cache.get(key);
+
+			if (!cached) {
+				const x = target[key];
+
+				cached = typeof x === 'function' && filter(key) ? processFn(x, opts) : x;
+				cache.set(key, cached);
+			}
+
+			return cached;
 		}
-
-		return processFn(obj, opts).apply(this, arguments);
-	} : {};
-
-	return Object.keys(obj).reduce((ret, key) => {
-		const x = obj[key];
-		ret[key] = typeof x === 'function' && filter(key) ? processFn(x, opts) : x;
-		return ret;
-	}, ret);
+	});
 };

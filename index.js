@@ -14,11 +14,7 @@ const processFn = (fn, opts) => function () {
 			if (err) {
 				reject(err);
 			} else if (opts.multiArgs) {
-				const results = new Array(arguments.length - 1);
-
-				for (let i = 1; i < arguments.length; i++) {
-					results[i - 1] = arguments[i];
-				}
+				const [, ...results] = arguments;
 
 				resolve(results);
 			} else {

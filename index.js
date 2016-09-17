@@ -1,22 +1,17 @@
 'use strict';
 
-const processFn = (fn, opts) => function () {
-	const that = this;
+const processFn = (fn, opts) => (that, args) => {
 	const P = opts.promiseModule;
-	const args = new Array(arguments.length);
 
-	for (let i = 0; i < arguments.length; i++) {
-		args[i] = arguments[i];
-	}
+	// TODO: no idea why this is needed
+	args = args || [];
 
 	return new P((resolve, reject) => {
-		args.push(function (err, result) {
+		args.push((err, result, ...additionalArgs) => {
 			if (err) {
 				reject(err);
 			} else if (opts.multiArgs) {
-				const [, ...results] = arguments;
-
-				resolve(results);
+				resolve([result, ...additionalArgs]);
 			} else {
 				resolve(result);
 			}
@@ -42,14 +37,18 @@ module.exports = (obj, opts) => {
 
 	return new Proxy(obj, {
 		apply: (target, thisArg, argumentsList) => {
+			if (opts.excludeMain) {
+				return Reflect.apply(target, thisArg, argumentsList);
+			}
+
 			let cached = cache.get(main);
 
 			if (!cached) {
-				cached = opts.excludeMain ? target : processFn(target, opts);
+				cached = processFn(target, opts);
 				cache.set(main, cached);
 			}
 
-			return cached.apply(thisArg, argumentsList);
+			return cached(thisArg, argumentsList);
 		},
 		get: (target, key) => {
 			let cached = cache.get(key);
